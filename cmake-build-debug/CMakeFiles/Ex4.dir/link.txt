@@ -1,0 +1,1 @@
+/usr/bin/cc -g CMakeFiles/Ex4.dir/hw4.c.o -o Ex4 
