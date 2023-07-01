@@ -1,12 +1,18 @@
 #include <stdio.h>
-#include "elf64.h"
+#include <stdarg.h>
 #include <string.h>
-#include <sys/types.h> // TODO: check if allowed
-#include <unistd.h> // TODO: check if allowed
-#include <sys/ptrace.h> // TODO: check if allowed
-#include <stdlib.h> // TODO: check if allowed
-#include <sys/wait.h> // TODO: check if allowed
-#include <sys/user.h> // TODO: check if allowed
+#include <stdlib.h>
+#include <signal.h>
+#include <syscall.h>
+#include <sys/ptrace.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/reg.h>
+#include <sys/user.h>
+#include <unistd.h>
+#include <errno.h>
+#include "elf64.h"
+
 #define	ET_NONE	0	//No file type
 #define	ET_REL	1	//Relocatable file
 #define	ET_EXEC	2	//Executable file
@@ -227,108 +233,208 @@ unsigned long find_symbol_static(char* symbol_name, char* exe_file_name, int* er
     }
 }
 
-pid_t run_target(const char* program, char* const args[])
-{
-    pid_t pid;
-    pid = fork();
-    if(pid > 0)
-    {
+pid_t run_target(const char* func, char *const argv[]){
+    pid_t pid = fork();
+
+    if(pid > 0){
         return pid;
     }
-    else if(pid == 0)
-    {
-        ptrace(PTRACE_TRACEME,0,NULL,NULL);
-        execv(program,args);
+    else if (pid == 0) {
+        if (ptrace(PTRACE_TRACEME, 0, NULL, NULL) < 0) {
+            perror("ptrace");
+            exit(1);
+        }
+        execv(func, (argv + 2));
+    }
+    else {
+        perror("fork");
+        exit(1);
     }
 }
 
 
 unsigned long setBreakpoint(unsigned long addr, pid_t child_pid)
 {
-    long data = ptrace(PTRACE_PEEKTEXT, child_pid, (void*) addr, NULL);
+    unsigned long data = ptrace(PTRACE_PEEKTEXT, child_pid, (void*) addr, NULL);
     unsigned long data_trap = (data & 0xFFFFFFFFFFFFFF00) | 0xCC;
     ptrace(PTRACE_POKETEXT, child_pid, (void*)addr, (void*)data_trap);
     return data;
 
 }
-void run_counter_debugger(pid_t child_pid, unsigned long addr)
+
+unsigned long get_dynamic_address(pid_t child_pid, unsigned long addr){
+    int wait_status;
+    struct user_regs_struct regs;
+    unsigned long correct_func_addr;
+
+    // get the plt second row address
+    unsigned long jmp_addr_from_got = ptrace(PTRACE_PEEKTEXT, child_pid, (void*)addr, NULL);
+
+    // set the breakpoint in the jmp command
+    unsigned long old_jmp_data = setBreakpoint(jmp_addr_from_got, child_pid);
+    ptrace(PTRACE_CONT, child_pid, NULL, NULL);
+    // wait for breakpoint
+    wait(&wait_status);
+
+    ptrace(PTRACE_GETREGS, child_pid, 0, &regs);
+
+    ptrace(PTRACE_POKETEXT, child_pid, (void*)jmp_addr_from_got, (void*)old_jmp_data);
+    regs.rip -= 1;
+    ptrace(PTRACE_SETREGS, child_pid, 0, &regs);
+
+    // iterate through plt step-by-step until the
+    // address stored in the got is changed and return it
+    while (WIFSTOPPED(wait_status)) {
+        correct_func_addr = ptrace(PTRACE_PEEKTEXT, child_pid, (void*)addr, NULL);
+
+        if(correct_func_addr != jmp_addr_from_got){
+
+            return correct_func_addr;
+        }
+
+        // Another step
+        ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL);
+        wait(&wait_status);
+    }
+}
+
+unsigned long getCurrAddress(pid_t child_pid)
+{
+    struct user_regs_struct regs;
+    ptrace(PTRACE_GETREGS,child_pid, 0, &regs);
+    return regs.rip - 1;
+}
+
+void run_debugger(pid_t child_pid, unsigned long func_addr, int is_dynamic)
 {
     int wait_status;
+    int is_first = 1;
+    int rec_counter = 0;
+    wait(&wait_status);
+    if(WIFEXITED(wait_status)) return;
+
     int call_counter = 0; //count the number of the function has been called
-    int open_counter = 0;
-    unsigned long retAddress;
+    Elf64_Addr retAddress;
     unsigned long old_ret_data;
     struct user_regs_struct regs;
 
-    while(1){ //while the function has been called TODO: handle WIFEXITED
-        wait(&wait_status);
-        unsigned long old_data = setBreakpoint(addr, child_pid); // set function entry breakpoint
+    while(1){
 
-        ptrace(PTRACE_CONT, child_pid, NULL, NULL);
+        if(is_first && is_dynamic)
+        {
+            func_addr = get_dynamic_address(child_pid, func_addr);
+            is_first = 0;
+        }
+
+        unsigned long old_data = setBreakpoint(func_addr, child_pid); // set function entry breakpoint
+
+        ptrace(PTRACE_CONT, child_pid, 0, 0);
 
         wait(&wait_status); // waiting for breakpoint
-
+        if(WIFEXITED(wait_status)) break;
         ptrace(PTRACE_GETREGS,child_pid, 0, &regs);
-        retAddress = regs.rsp;
-        unsigned long firstParam = regs.rdi;
+
+        retAddress = ptrace(PTRACE_PEEKTEXT, child_pid, regs.rsp, NULL); // (regs.rsp)
 
         regs.rip -=1;
-        if(open_counter == 0)
-        {
-            call_counter++;
-            old_ret_data = setBreakpoint(retAddress,child_pid);
-            printf("PRF:: run #%d first parameter is %ld\n", call_counter, firstParam);
-        }
-        open_counter++;
-
-        ptrace(PTRACE_POKETEXT, child_pid, (void*)addr, (void*)old_data);
+        ptrace(PTRACE_POKETEXT, child_pid, (void*)func_addr, (void*)old_data);
         ptrace(PTRACE_SETREGS,child_pid, 0, &regs);
 
-        // single step
-        ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL);
-        ptrace(PTRACE_CONT, child_pid, NULL, NULL);
+        call_counter++;
+        rec_counter++;
 
-        // TODO: stop on return
-        open_counter--;
+        // set breakpoint on return address
+        old_ret_data = setBreakpoint(retAddress,child_pid);
 
+
+        ptrace(PTRACE_SINGLESTEP, child_pid, 0, 0);
+        wait(&wait_status);
+        setBreakpoint(func_addr, child_pid); // set function entry breakpoint
+        ptrace(PTRACE_CONT, child_pid, 0, 0);
+
+        // waiting for any type of breakpoint
+        while(rec_counter)
+        {
+            wait(&wait_status);
+            if(WIFEXITED(wait_status)) return;
+
+            ptrace(PTRACE_GETREGS,child_pid, 0, &regs);
+
+            if(getCurrAddress(child_pid) == func_addr)
+            {
+                unsigned long currRet = ptrace(PTRACE_PEEKTEXT, child_pid, (void*)regs.rsp, NULL);
+                if(currRet == retAddress) rec_counter++;
+
+                ptrace(PTRACE_POKETEXT, child_pid, (void*)func_addr, (void*)old_data);
+
+                regs.rip-=1;
+                ptrace(PTRACE_SETREGS,child_pid, 0, &regs);
+
+                ptrace(PTRACE_SINGLESTEP, child_pid, 0, 0);
+                wait(&wait_status);
+                setBreakpoint(func_addr, child_pid); // set function entry breakpoint
+            }
+            else
+            {
+                // Handle return breakpoint
+                ptrace(PTRACE_POKETEXT, child_pid, (void*)retAddress, (void*)old_ret_data);
+
+                regs.rip-=1;
+                ptrace(PTRACE_SETREGS,child_pid, 0, &regs);
+
+                if(rec_counter == 1) {
+                    // remove breakpoints and continue
+                    ptrace(PTRACE_POKETEXT, child_pid, (void*)func_addr, (void*)old_data);
+                    rec_counter=0;
+                    break;
+                }
+
+                ptrace(PTRACE_SINGLESTEP, child_pid, 0, 0);
+                wait(&wait_status);
+                setBreakpoint(retAddress, child_pid); // set function entry breakpoint
+                rec_counter--;
+            }
+
+            ptrace(PTRACE_CONT, child_pid, 0, 0);
+        }
+        printf("PRF:: run #%d returned with %d\n", call_counter, (int)(regs.rax));
     }
 }
 
 
+
+
 int main(int argc, char *const argv[]) {
     int err = 0;
+    int is_dynamic = 0;
     unsigned long addr = find_symbol_static(argv[1], argv[2], &err);
 
     if (err == -3)
     {
-        printf("PRF:: %s not an executable!\n", argv[2]);
+        printf("PRF:: %s not an executable! :(\n", argv[2]);
         return 0;
     }
     else if (err == -1)
     {
-        printf("PRF:: %s not found! :(\n", argv[1]);
+        printf("PRF:: %s not found!\n", argv[1]);
         return 0;
     }
     else if (err == -2)
     {
-        printf("PRF:: %s is not a global symbol!\n", argv[1]);
+        printf("PRF:: %s is not a global symbol! :(\n", argv[1]);
         return 0;
     }
     else if(err == -4)
     {
         unsigned long index = find_symbol_dynamic(argv[1], argv[2], &err);
         addr = find_relocation_address(index, argv[2]);
+        is_dynamic = 1;
     }
 
-    char* const* tempArgs = argv+1;
 
-    if (addr > 0) // TODO: check
-        printf("%s will be loaded to 0x%lx\n", argv[1], addr);
 
-    // TODO:Debugger
-//    pid_t child_pid;
-//    child_pid = run_target(argv[2],tempArgs);
-//    run_counter_debugger(child_pid, addr);
+    pid_t child_pid = run_target(argv[2], argv);
+    run_debugger(child_pid, addr, is_dynamic);
 
     return 0;
 }

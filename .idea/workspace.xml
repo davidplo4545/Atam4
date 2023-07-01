@@ -20,7 +20,18 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="677a1186-5861-4dca-a138-b08b0b92db99" name="Changes" comment="" />
+    <list default="true" id="677a1186-5861-4dca-a138-b08b0b92db99" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/a.out" beforeDir="false" afterPath="$PROJECT_DIR$/a.out" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/b.out" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/.cmake/api/v1/reply/index-2023-06-25T14-59-22-0549.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/Ex4.dir/hw4.c.o" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/Ex4.dir/hw4.c.o" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/Ex4" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/Ex4" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/elf64.h.gch" beforeDir="false" afterPath="$PROJECT_DIR$/elf64.h.gch" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hw4.c" beforeDir="false" afterPath="$PROJECT_DIR$/hw4.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test.c" beforeDir="false" afterPath="$PROJECT_DIR$/test.c" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -30,6 +41,9 @@
     <option name="formatViaClangd" value="false" />
   </component>
   <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
   </component>
@@ -48,10 +62,11 @@
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "WebServerToolWindowFactoryState": "false",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
-    "last_opened_file_path": "C:/Users/david/Desktop/Atam/Ex4/cmake-build-debug",
+    "last_opened_file_path": "C:/Users/david/Desktop/Atam/Ex4",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -63,12 +78,17 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
-      <recent name="C:\Users\david\Desktop\Atam\Ex4\cmake-build-debug" />
       <recent name="C:\Users\david\Desktop\Atam\Ex4" />
+      <recent name="C:\Users\david\Desktop\Atam\Ex4\cmake-build-debug" />
     </key>
   </component>
   <component name="RunManager">
-    <configuration name="Ex4" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="addSoVar main.out" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="Ex4" TARGET_NAME="Ex4" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="Ex4" RUN_TARGET_NAME="Ex4">
+    <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true">
+      <method v="2">
+        <option name="CLION.EXTERNAL.BUILD" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Ex4" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="foo program1.out" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="Ex4" TARGET_NAME="Ex4" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="Ex4" RUN_TARGET_NAME="Ex4">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
@@ -117,12 +137,23 @@
       <workItem from="1687866923822" duration="2343000" />
       <workItem from="1687937907749" duration="79000" />
       <workItem from="1688051725092" duration="1000" />
-      <workItem from="1688052026246" duration="7649000" />
+      <workItem from="1688052026246" duration="23280000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/hw4.c</url>
+          <line>272</line>
+          <option name="timeStamp" value="14" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
