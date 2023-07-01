@@ -298,23 +298,17 @@ unsigned long get_dynamic_address(pid_t child_pid, unsigned long addr){
     }
 }
 
-unsigned long getCurrAddress(pid_t child_pid)
-{
-    struct user_regs_struct regs;
-    ptrace(PTRACE_GETREGS,child_pid, 0, &regs);
-    return regs.rip - 1;
-}
-
 void run_debugger(pid_t child_pid, unsigned long func_addr, int is_dynamic)
 {
     int wait_status;
     int is_first = 1;
-    int rec_counter = 0;
     wait(&wait_status);
     if(WIFEXITED(wait_status)) return;
 
     int call_counter = 0; //count the number of the function has been called
     Elf64_Addr retAddress;
+    unsigned long req_rsp;
+
     unsigned long old_ret_data;
     struct user_regs_struct regs;
 
@@ -325,7 +319,6 @@ void run_debugger(pid_t child_pid, unsigned long func_addr, int is_dynamic)
             func_addr = get_dynamic_address(child_pid, func_addr);
             is_first = 0;
         }
-
         unsigned long old_data = setBreakpoint(func_addr, child_pid); // set function entry breakpoint
 
         ptrace(PTRACE_CONT, child_pid, 0, 0);
@@ -334,70 +327,43 @@ void run_debugger(pid_t child_pid, unsigned long func_addr, int is_dynamic)
         if(WIFEXITED(wait_status)) break;
         ptrace(PTRACE_GETREGS,child_pid, 0, &regs);
 
+        // set breakpoint on return address
         retAddress = ptrace(PTRACE_PEEKTEXT, child_pid, regs.rsp, NULL); // (regs.rsp)
+        req_rsp = regs.rsp + 8;
 
         regs.rip -=1;
         ptrace(PTRACE_POKETEXT, child_pid, (void*)func_addr, (void*)old_data);
         ptrace(PTRACE_SETREGS,child_pid, 0, &regs);
 
         call_counter++;
-        rec_counter++;
+        printf("PRF:: run #%d first parameter is %d\n", call_counter, (int)regs.rdi); // TODO: check if rsi/rdi is first?
 
-        // set breakpoint on return address
         old_ret_data = setBreakpoint(retAddress,child_pid);
-
-
-        ptrace(PTRACE_SINGLESTEP, child_pid, 0, 0);
-        wait(&wait_status);
-        setBreakpoint(func_addr, child_pid); // set function entry breakpoint
         ptrace(PTRACE_CONT, child_pid, 0, 0);
 
-        // waiting for any type of breakpoint
-        while(rec_counter)
+        while(1)
         {
             wait(&wait_status);
-            if(WIFEXITED(wait_status)) return;
-
+            ptrace(PTRACE_POKETEXT, child_pid, (void*)retAddress, (void*)old_ret_data);
             ptrace(PTRACE_GETREGS,child_pid, 0, &regs);
-
-            if(getCurrAddress(child_pid) == func_addr)
+            regs.rip -=1;
+            ptrace(PTRACE_SETREGS,child_pid, 0, &regs);
+            if(regs.rsp == req_rsp)
             {
-                unsigned long currRet = ptrace(PTRACE_PEEKTEXT, child_pid, (void*)regs.rsp, NULL);
-                if(currRet == retAddress) rec_counter++;
-
-                ptrace(PTRACE_POKETEXT, child_pid, (void*)func_addr, (void*)old_data);
-
-                regs.rip-=1;
-                ptrace(PTRACE_SETREGS,child_pid, 0, &regs);
-
-                ptrace(PTRACE_SINGLESTEP, child_pid, 0, 0);
-                wait(&wait_status);
-                setBreakpoint(func_addr, child_pid); // set function entry breakpoint
+                printf("PRF:: run #%d returned with %d\n", call_counter, (int)(regs.rax));
+                break;
             }
             else
             {
-                // Handle return breakpoint
-                ptrace(PTRACE_POKETEXT, child_pid, (void*)retAddress, (void*)old_ret_data);
-
-                regs.rip-=1;
-                ptrace(PTRACE_SETREGS,child_pid, 0, &regs);
-
-                if(rec_counter == 1) {
-                    // remove breakpoints and continue
-                    ptrace(PTRACE_POKETEXT, child_pid, (void*)func_addr, (void*)old_data);
-                    rec_counter=0;
-                    break;
-                }
-
-                ptrace(PTRACE_SINGLESTEP, child_pid, 0, 0);
+                ptrace(PTRACE_SINGLESTEP,child_pid, 0, 0);
                 wait(&wait_status);
-                setBreakpoint(retAddress, child_pid); // set function entry breakpoint
-                rec_counter--;
+                // retrieve the breakpoint to the return address and continue
+                setBreakpoint(retAddress,child_pid);
+                ptrace(PTRACE_CONT, child_pid, 0, 0);
             }
 
-            ptrace(PTRACE_CONT, child_pid, 0, 0);
         }
-        printf("PRF:: run #%d returned with %d\n", call_counter, (int)(regs.rax));
+
     }
 }
 
@@ -411,17 +377,17 @@ int main(int argc, char *const argv[]) {
 
     if (err == -3)
     {
-        printf("PRF:: %s not an executable! :(\n", argv[2]);
+        printf("PRF:: %s not an executable!\n", argv[2]);
         return 0;
     }
     else if (err == -1)
     {
-        printf("PRF:: %s not found!\n", argv[1]);
+        printf("PRF:: %s not found! :(\n", argv[1]);
         return 0;
     }
     else if (err == -2)
     {
-        printf("PRF:: %s is not a global symbol! :(\n", argv[1]);
+        printf("PRF:: %s is not a global symbol!\n", argv[1]);
         return 0;
     }
     else if(err == -4)
